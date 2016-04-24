@@ -1,0 +1,1783 @@
+/***************************************************
+ * "Private" functions, for public ones, vide infra
+ ***************************************************/
+
+/*
+ *
+ * BGEE has hpclass.2da, plus hpbarb.2da, hpdd.2da and three kits that use different tables from the base class
+ */
+DEFINE_PATCH_FUNCTION fl#set_class#roll_hp
+  INT_VAR
+    level = 0
+    start = 0
+    max_hp = 0
+    hp_threshold = 0
+    divider = 1 // should be 1
+    barbarian = 0
+  STR_VAR
+    file_res = ""
+  RET
+    hp
+BEGIN
+  INNER_ACTION BEGIN
+    COPY_EXISTING "%file_res%.2da" override
+      hp = 0
+      READ_2DA_ENTRIES_NOW rollhp 3
+      FOR (i = start; i < rollhp AND i <= level; ++i) BEGIN
+        READ_2DA_ENTRY_FORMER rollhp i 1 sides
+        READ_2DA_ENTRY_FORMER rollhp i 2 rolls
+        READ_2DA_ENTRY_FORMER rollhp i 3 modifier
+        PATCH_IF sides > 0 AND rolls > 0 BEGIN
+          /*
+           * NWN-style makes you roll XD2 instead of 1DY, where X = Y / 2
+           */
+          PATCH_IF !FILE_EXISTS_IN_GAME cdt03001.g3 BEGIN
+            sides = barbarian ? 12 : sides
+          END ELSE BEGIN
+            sides = barbarian ? 2 : sides
+            rolls = 6
+          END
+          FOR (j = 0; j < rolls; ++j) BEGIN
+            PATCH_IF max_hp BEGIN
+              amount = sides / divider
+              amount = amount = 0 ? 1 : amount
+            END ELSE BEGIN
+              roll = RANDOM (1 sides)
+              PATCH_IF hp_threshold > 0 AND hp_threshold <= 100 AND !FILE_EXISTS_IN_GAME cdt03001.g3 BEGIN
+                done = 0
+                WHILE !done BEGIN
+                  threshold = (sides * hp_threshold) / 100
+                  PATCH_IF roll < threshold BEGIN
+                    roll = RANDOM (1 sides)
+                  END ELSE BEGIN
+                    done = 1
+                  END
+                END
+              END
+              amount = roll / divider
+              amount = amount = 0 ? 1 : amount
+            END
+            hp += amount
+          END
+        END
+        amount = modifier / divider
+        amount = amount = 0 AND modifier > 0 ? 1 : amount
+        hp += amount
+      END
+    BUT_ONLY
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#get_hp
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+    start = 1 // Should be 1
+    max_hp = 0
+    hp_threshold = 0
+    barbarian = 0
+  STR_VAR
+    class = ""
+  RET
+    hp
+BEGIN
+  hp = 10
+  PATCH_MATCH "%class%" WITH
+    fighter ranger paladin
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold barbarian STR_VAR file_res = hpwar RET hp END
+    END
+    druid cleric
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold STR_VAR file_res = hpprs RET hp END
+    END
+    thief bard
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold STR_VAR file_res = hprog RET hp END
+    END
+    mage sorcerer
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold STR_VAR file_res = hpwiz RET hp END
+    END
+    monk
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold STR_VAR file_res = hpmonk RET hp END
+    END
+    fighter_mage
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold divider = 2 barbarian STR_VAR file_res = hpwar RET hp1 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level2 start max_hp hp_threshold divider = 2 STR_VAR file_res = hpwiz RET hp2 = hp END
+      hp = hp1 + hp2
+    END
+    fighter_cleric fighter_druid
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold divider = 2 barbarian STR_VAR file_res = hpwar RET hp1 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level2 start max_hp hp_threshold divider = 2 STR_VAR file_res = hpprs RET hp2 = hp END
+      hp = hp1 + hp2
+    END
+    cleric_ranger
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level2 start max_hp hp_threshold divider = 2 STR_VAR file_res = hpwar RET hp1 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold divider = 2 STR_VAR file_res = hpprs RET hp2 = hp END
+      hp = hp1 + hp2
+    END
+    fighter_thief
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold divider = 2 barbarian STR_VAR file_res = hpwar RET hp1 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level2 start max_hp hp_threshold divider = 2 STR_VAR file_res = hprog RET hp2 = hp END
+      hp = hp1 + hp2
+    END
+    fighter_mage_thief
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold divider = 3 barbarian STR_VAR file_res = hpwar RET hp1 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level2 start max_hp hp_threshold divider = 3 STR_VAR file_res = hpwiz RET hp2 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level3 start max_hp hp_threshold divider = 3 STR_VAR file_res = hprog RET hp3 = hp END
+      hp = hp1 + hp2 + hp3
+    END
+    mage_thief
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold divider = 2 STR_VAR file_res = hpwiz RET hp1 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level2 start max_hp hp_threshold divider = 2 STR_VAR file_res = hprog RET hp2 = hp END
+      hp = hp1 + hp2
+    END
+    cleric_mage
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold divider = 2 STR_VAR file_res = hpprs RET hp1 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level2 start max_hp hp_threshold divider = 2 STR_VAR file_res = hpwiz RET hp2 = hp END
+      hp = hp1 + hp2
+    END
+    cleric_thief
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold divider = 2 STR_VAR file_res = hpprs RET hp1 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level2 start max_hp hp_threshold divider = 2 STR_VAR file_res = hprog RET hp2 = hp END
+      hp = hp1 + hp2
+    END
+    fighter_mage_cleric
+    BEGIN
+      LPF fl#set_class#roll_hp INT_VAR level = level1 start max_hp hp_threshold divider = 3 barbarian STR_VAR file_res = hpwar RET hp1 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level2 start max_hp hp_threshold divider = 3 STR_VAR file_res = hpwiz RET hp2 = hp END
+      LPF fl#set_class#roll_hp INT_VAR level = level3 start max_hp hp_threshold divider = 3 STR_VAR file_res = hpprs RET hp3 = hp END
+      hp = hp1 + hp2 + hp3
+    END
+    DEFAULT
+      PATCH_WARN "WARNING: unsupported class for function set_hp: %class%"
+  END
+END
+
+/*
+ * Reads the save throws of the specified class of the specified level from the specified 2da
+ */
+DEFINE_PATCH_FUNCTION fl#set_class#get_saves
+  INT_VAR
+    level = 0
+  STR_VAR
+    file_res = ""
+  RET
+    death
+    wands
+    poly
+    breath
+    spells
+BEGIN
+  INNER_ACTION BEGIN
+    COPY_EXISTING "%file_res%.2da" override
+      found = 0
+      READ_2DA_ENTRIES_NOW saves 10
+      COUNT_2DA_COLS num_cols
+      FOR (i = 1; i < num_cols; ++i) BEGIN
+        READ_2DA_ENTRY_FORMER saves 0 i - 1 l
+        PATCH_IF l = level BEGIN
+          READ_2DA_ENTRY_FORMER saves 1 i death
+          READ_2DA_ENTRY_FORMER saves 2 i wands
+          READ_2DA_ENTRY_FORMER saves 3 i poly
+          READ_2DA_ENTRY_FORMER saves 4 i breath
+          READ_2DA_ENTRY_FORMER saves 5 i spells
+          found = 1
+        END
+      END
+      PATCH_IF !found BEGIN
+        PATCH_WARN "WARNING: cannot find level %level% in %file_res%.2da; saves defaulting to 0"
+        death = 0
+        wands = 0
+        poly = 0
+        breath = 0
+        spells = 0
+      END
+    BUT_ONLY
+  END
+END
+
+DEFINE_PATCH_MACRO fl#set_class#two_way_save_cmp BEGIN
+  PATCH_FOR_EACH s IN death wands poly breath spells BEGIN
+    SET EVAL "%s%" = EVAL "%s%1" < EVAL"%s%2" ? EVAL "%s%1" :  EVAL "%s%2"
+  END
+END
+
+DEFINE_PATCH_MACRO fl#set_class#three_way_save_cmp BEGIN
+  PATCH_FOR_EACH s IN death wands poly breath spells BEGIN
+    SET EVAL "%s%" = EVAL "%s%1" < EVAL "%s%2" ?
+                     (EVAL "%s%1" < EVAL "%s%3" ? EVAL "%s%1" : EVAL "%s%3") :
+                     (EVAL "%s%2" < EVAL "%s%3" ? EVAL "%s%2" : EVAL "%s%3")
+  END
+END
+
+/*
+ * Helper function for calculating the save throws of a 2-class multiclass
+ */
+DEFINE_PATCH_FUNCTION fl#set_class#get_dual_saves
+  INT_VAR
+    level1 = 0
+    level2 = 0
+  STR_VAR
+    file_res_1 = ""
+    file_res_2 = ""
+  RET
+    death
+    wands
+    poly
+    breath
+    spells
+BEGIN
+  LPF fl#set_class#get_saves INT_VAR level = level1 STR_VAR file_res = EVAL "%file_res_1%"
+    RET
+      death1 = death wands1 = wands poly1 = poly breath1 = breath spells1 = spells END
+  LPF fl#set_class#get_saves INT_VAR level = level2 STR_VAR file_res = EVAL "%file_res_2%"
+    RET
+      death2 = death wands2 = wands poly2 = poly breath2 = breath spells2 = spells END
+  LPM fl#set_class#two_way_save_cmp
+END
+
+/*
+ * Helper function for calculating the save throws of a triple-class
+ */
+DEFINE_PATCH_FUNCTION fl#set_class#get_triple_saves
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    file_res_1 = ""
+    file_res_2 = ""
+    file_res_3 = ""
+  RET
+    death
+    wands
+    poly
+    breath
+    spells
+BEGIN
+  LPF fl#set_class#get_saves INT_VAR level = level1 STR_VAR file_res = EVAL "%file_res_1%"
+    RET
+      death1 = death wands1 = wands poly1 = poly breath1 = breath spells1 = spells END
+  LPF fl#set_class#get_saves INT_VAR level = level2 STR_VAR file_res = EVAL "%file_res_2%"
+    RET
+      death2 = death wands2 = wands poly2 = poly breath2 = breath spells2 = spells END
+  LPF fl#set_class#get_saves INT_VAR level = level2 STR_VAR file_res = EVAL "%file_res_3%"
+    RET
+      death3 = death wands3 = wands poly3 = poly breath3 = breath spells3 = spells END
+  LPM fl#set_class#three_way_save_cmp
+END
+
+/*
+ * Returns the save throws of a class of levels x, y and z
+ */
+DEFINE_PATCH_FUNCTION fl#set_class#get_save_throws
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+  RET
+    death
+    wands
+    poly
+    breath
+    spells
+BEGIN
+  death = 20
+  wands = 20
+  poly = 20
+  breath = 20
+  spells = 20
+  PATCH_MATCH "%class%" WITH
+    fighter ranger paladin
+    BEGIN
+      LPF fl#set_class#get_saves INT_VAR level = level1 STR_VAR file_res = savewar RET death wands poly breath spells END
+    END
+    druid cleric
+    BEGIN
+      LPF fl#set_class#get_saves INT_VAR level = level1 STR_VAR file_res = saveprs RET death wands poly breath spells END
+    END
+    thief bard
+    BEGIN
+      LPF fl#set_class#get_saves INT_VAR level = level1 STR_VAR file_res = saverog RET death wands poly breath spells END
+    END
+    mage sorcerer
+    BEGIN
+      LPF fl#set_class#get_saves INT_VAR level = level1 STR_VAR file_res = savewiz RET death wands poly breath spells END
+    END
+    monk
+    BEGIN
+      LPF fl#set_class#get_saves INT_VAR level = level1 STR_VAR file_res = savemonk RET death wands poly breath spells END
+    END
+    fighter_mage
+    BEGIN
+      LPF fl#set_class#get_dual_saves
+        INT_VAR
+          level1
+          level2
+        STR_VAR
+          file_res_1 = savewar
+          file_res_2 = savewiz
+        RET
+          death
+          wands
+          poly
+          breath
+          spells
+      END
+    END
+    fighter_cleric fighter_druid
+    BEGIN
+      LPF fl#set_class#get_dual_saves
+        INT_VAR
+          level1
+          level2
+        STR_VAR
+          file_res_1 = savewar
+          file_res_2 = saveprs
+        RET
+          death
+          wands
+          poly
+          breath
+          spells
+      END
+    END
+    cleric_ranger
+    BEGIN
+      LPF fl#set_class#get_dual_saves
+        INT_VAR
+          level1
+          level2
+        STR_VAR
+          file_res_1 = saveprs
+          file_res_2 = savewar
+        RET
+          death
+          wands
+          poly
+          breath
+          spells
+      END
+    END
+    fighter_thief
+    BEGIN
+      LPF fl#set_class#get_dual_saves
+        INT_VAR
+          level1
+          level2
+        STR_VAR
+          file_res_1 = savewar
+          file_res_2 = saverog
+        RET
+          death
+          wands
+          poly
+          breath
+          spells
+      END
+    END
+    fighter_mage_thief
+    BEGIN
+      LPF fl#set_class#get_triple_saves
+        INT_VAR
+          level1
+          level2
+          level3
+        STR_VAR
+          file_res_1 = savewar
+          file_res_2 = savewiz
+          file_res_3 = saverog
+        RET
+          death
+          wands
+          poly
+          breath
+          spells
+      END
+    END
+    mage_thief
+    BEGIN
+      LPF fl#set_class#get_dual_saves
+        INT_VAR
+          level1
+          level2
+        STR_VAR
+          file_res_1 = savewiz
+          file_res_2 = saverog
+        RET
+          death
+          wands
+          poly
+          breath
+          spells
+      END
+    END
+    cleric_mage
+    BEGIN
+      LPF fl#set_class#get_dual_saves
+        INT_VAR
+          level1
+          level2
+        STR_VAR
+          file_res_1 = saveprs
+          file_res_2 = savewiz
+        RET
+          death
+          wands
+          poly
+          breath
+          spells
+      END
+    END
+    cleric_thief
+    BEGIN
+      LPF fl#set_class#get_dual_saves
+        INT_VAR
+          level1
+          level2
+        STR_VAR
+          file_res_1 = saveprs
+          file_res_2 = saverog
+        RET
+          death
+          wands
+          poly
+          breath
+          spells
+      END
+    END
+    fighter_mage_cleric
+    BEGIN
+      LPF fl#set_class#get_triple_saves
+        INT_VAR
+          level1
+          level2
+          level3
+        STR_VAR
+          file_res_1 = savewar
+          file_res_2 = savewiz
+          file_res_3 = saveprs
+        RET
+          death
+          wands
+          poly
+          breath
+          spells
+      END
+    END
+    DEFAULT
+      PATCH_WARN "WARNING: unsupported class for function set_save_throws: %class%"
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#canonise_kit_name
+  STR_VAR
+    kit = ""
+  RET
+    kit
+BEGIN
+  TO_LOWER kit
+  PATCH_MATCH "%kit%" WITH
+    archer
+    BEGIN
+      SPRINT kit feralan
+    END
+    assassin
+    BEGIN
+      SPRINT kit assasin
+    END
+    avenger
+    BEGIN
+      SPRINT kit beastfriend
+    END
+    trueclass mageschool_generalist generalist
+    BEGIN
+      SPRINT kit ""
+    END
+    abjurer conjurer diviner enchanter illusionist invoker necromancer transmuter
+    BEGIN
+      SPRINT kit "mageschool_%kit%"
+    END
+    talos helm lathander
+    BEGIN
+      SPRINT kit "god%kit%"
+    END
+    wild_mage
+    BEGIN
+      SPRINT kit wildmage
+    END
+    DEFAULT
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#get_thac0
+  INT_VAR
+    level = 0
+  STR_VAR
+    class = ""
+  RET
+    thac0
+BEGIN
+  found = 0
+  INNER_ACTION BEGIN
+    COPY_EXISTING thac0.2da override
+      READ_2DA_ENTRIES_NOW thac02da 20
+      COUNT_2DA_COLS num_col
+      FOR (i = 1; i < thac02da; ++i) BEGIN
+        READ_2DA_ENTRY_FORMER thac02da i 0 c
+        PATCH_IF "%c%" STRING_EQUAL_CASE "%class%" BEGIN
+          FOR (j = 0; j < num_col - 1; ++j) BEGIN
+            READ_2DA_ENTRY_FORMER thac02da 0 j l
+            PATCH_IF l = level BEGIN
+              READ_2DA_ENTRY_FORMER thac02da i j + 1 t
+              found = 1
+              i = thac02da
+              j = num_col
+            END
+          END
+        END
+      END
+    BUT_ONLY
+  END
+  PATCH_IF !found BEGIN
+    PATCH_WARN "WARNING: set_thac0 could not find your class (%class%) or level (%level%); defaulting to thac0 = 0"
+    t = 0
+  END
+  thac0 = t
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#set_apr
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+BEGIN
+  // APR bonuses from wspatck.2da are applied dynamically by the engine
+  apr = 1
+  WRITE_BYTE 0x53 apr
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#set_animation
+  STR_VAR
+    class = ""
+ BEGIN
+  LOOKUP_IDS_SYMBOL_OF_INT race race BYTE_AT 0x272
+  LOOKUP_IDS_SYMBOL_OF_INT gender gender BYTE_AT 0x275
+  change = 1
+  PATCH_MATCH "%class%" WITH
+    ".*fighter.*" ".*ranger.*" paladin
+    BEGIN
+      SPRINT c fighter
+    END
+    ".*thief.*" bard
+    BEGIN
+      SPRINT c thief
+    END
+    ".*mage.*" sorcerer
+    BEGIN
+      SPRINT c mage
+    END
+    ".*cleric.*" druid
+    BEGIN
+      SPRINT c cleric
+    END
+    monk
+    BEGIN
+      SPRINT c monk
+    END
+    DEFAULT
+      PATCH_WARN "WARNING: unsupported class for set_animation: %class%"
+  END
+  PATCH_MATCH "%race%" WITH
+    half_elf
+    BEGIN
+      SPRINT r elf
+    END
+    human elf dwarf halfling gnome halforc
+    BEGIN
+      SPRINT r "%race%"
+    END
+    DEFAULT
+      change = 0
+  END
+  PATCH_MATCH "%gender%" WITH
+    male female
+    BEGIN
+      SPRINT g "%gender%"
+    END
+    DEFAULT
+      change = 0
+  END
+  PATCH_IF change BEGIN
+    //We use animate.ids because the alternative is too boring (and too much work)
+    //Hopefully it works anyway
+    animation = IDS_OF_SYMBOL (animate "%c%_%g%_%r%")
+    PATCH_IF animation != "-1" BEGIN
+      WRITE_LONG 0x28 animation
+    END ELSE BEGIN
+      TO_UPPER c
+      TO_UPPER g
+      TO_UPPER r
+      PATCH_WARN "WARNING: animation for %c%_%g%_%r% was not found in animate.ids"
+    END
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#get_kit_clab
+  STR_VAR
+    kit = ""
+  RET
+    clab
+    kit_class
+BEGIN
+  INNER_ACTION BEGIN
+    COPY_EXISTING kitlist.2da override
+      found = 0
+      READ_2DA_ENTRIES_NOW kitlist 9
+      FOR (i = 0; i < kitlist; ++i) BEGIN
+        READ_2DA_ENTRY_FORMER kitlist i 1 name
+        PATCH_IF "%name%" STRING_EQUAL_CASE "%kit%" BEGIN
+          READ_2DA_ENTRY_FORMER kitlist i 5 clab
+          READ_2DA_ENTRY_FORMER kitlist i 8 c
+          LOOKUP_IDS_SYMBOL_OF_INT kit_class class c
+          i = kitlist
+          found = 1
+        END
+      END
+    BUT_ONLY
+  END
+  PATCH_IF !found BEGIN
+    PATCH_WARN "WARNING: kit %kit% was specified but not found in kitlist.2da; defaulting to no kit"
+    SPRINT clab ""
+    SPRINT kit_class ""
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#apply_spell
+  INT_VAR
+    level = 0
+  STR_VAR
+    spell = ""
+BEGIN
+  PATCH_IF FILE_EXISTS_IN_GAME "%spell%.spl" BEGIN
+    INNER_ACTION BEGIN
+      COPY_EXISTING "%spell%.spl" override
+        counter = 0
+        READ_LONG  0x64 ao
+        READ_SHORT 0x68 na
+        READ_LONG  0x6a eo
+        index = 0
+        FOR (i = index; i < na; ++i) BEGIN
+          READ_SHORT ao + 0x28 * i + 0x10 min_level
+          PATCH_IF level >= min_level BEGIN
+            index = i
+          END
+        END
+        PATCH_IF na >= 1 BEGIN
+          READ_SHORT ao + 0x28 * index + 0x1e ne
+          READ_SHORT ao + 0x28 * index + 0x20 ei
+          FOR (j = 0; j < ne; ++j) BEGIN
+            READ_SHORT eo + 0x30 * (ei + j)        opcode
+            READ_LONG  eo + 0x30 * (ei + j) + 0x4  p1
+            READ_LONG  eo + 0x30 * (ei + j) + 0x8  p2
+            READ_BYTE  eo + 0x30 * (ei + j) + 0xc  timing
+            READ_ASCII eo + 0x30 * (ei + j) + 0x14 resref
+            SET $opcode("%counter%") = opcode
+            SET $p1("%counter%") = p1
+            SET $p2("%counter%") = p2
+            SET $timing("%counter%") = timing
+            SPRINT $resref("%counter%") "%resref%"
+            ++counter
+          END
+        END
+      BUT_ONLY
+    END
+    PHP_EACH opcode AS i => opcode BEGIN
+      LPF fl#set_class#ADD_CRE_EFFECT
+        INT_VAR
+          opcode
+          parameter1 = $p1("%i%")
+          parameter2 = $p2("%i%")
+          timing = $timing("%i%")
+        STR_VAR
+          resource = EVAL $resref("%i%")
+      END
+    END
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#gain_spell
+  STR_VAR
+    spell = ""
+BEGIN
+  PATCH_IF FILE_EXISTS_IN_GAME "%spell%.spl" BEGIN
+    ADD_MEMORIZED_SPELL "%spell%" #0 innate
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#get_spell
+  STR_VAR
+    entry = ""
+  RET
+    spell
+BEGIN
+  length = STRING_LENGTH "%entry%" < 11 ? STRING_LENGTH "%entry%" - 3 : 8
+  INNER_PATCH "%entry%" BEGIN
+    READ_ASCII 3 spell ("%length%")
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#apply_clab_file
+  INT_VAR
+    level = 0
+  STR_VAR
+    clab = ""
+BEGIN
+  PATCH_IF FILE_EXISTS_IN_GAME "%clab%.2da" BEGIN
+    INNER_ACTION BEGIN
+      COPY_EXISTING "%clab%.2da" override
+        counter = 0
+        READ_2DA_ENTRIES_NOW applyclab 10
+        COUNT_2DA_COLS num_cols
+        FOR (i = 1; i < num_cols - 1; ++i) BEGIN
+          READ_2DA_ENTRY_FORMER applyclab 0 i - 1 l
+          PATCH_IF l <= level BEGIN
+            FOR (j = 1; j < applyclab; ++j) BEGIN
+              READ_2DA_ENTRY_FORMER applyclab j i entry
+              PATCH_IF "%entry%" STRING_MATCHES_REGEXP "\*" BEGIN
+                SPRINT $abilities("%counter%") "%entry%"
+                SET $levels("%counter%") = l
+                ++counter
+              END
+            END
+          END
+          PATCH_IF l > level BEGIN // we're done
+            i = num_cols
+          END
+        END
+      BUT_ONLY
+    END
+    PHP_EACH abilities AS i => entry BEGIN
+      PATCH_IF "%entry%" STRING_MATCHES_REGEXP "GA_.+" = 0 BEGIN
+        LPF fl#set_class#get_spell STR_VAR entry RET spell END
+        LPF fl#set_class#gain_spell STR_VAR spell END
+      END
+      PATCH_IF "%entry%" STRING_MATCHES_REGEXP "AP_.+" = 0 BEGIN // this may apply the effects in the reversed order
+        LPF fl#set_class#get_spell STR_VAR entry RET spell END
+        LPF fl#set_class#apply_spell INT_VAR level = $levels("%i%") STR_VAR spell END
+      END
+    END
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#apply_class_abilities
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+BEGIN
+  DEFINE_ASSOCIATIVE_ARRAY class_clabs BEGIN
+    fighter => clabfi01
+    mage => clabma01
+    sorcerer => clabma01
+    cleric => clabpr01
+    thief => clabth01
+    bard => clabba01
+    paladin => clabpa01
+    druid => clabdr01
+    ranger => clabrn01
+    monk => clabmo01
+  END
+  PATCH_MATCH "%class%" WITH
+    fighter_mage
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+    END
+    fighter_cleric
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabpr01 END
+    END
+    fighter_druid
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabdr01 END
+    END
+    fighter_thief
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabth01 END
+    END
+    fighter_mage_thief
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level3 STR_VAR clab = clabth01 END
+    END
+    mage_thief
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabma01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabth01 END
+    END
+    cleric_mage
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabpr01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+    END
+    cleric_thief
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabpr01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabth01 END
+    END
+    fighter_mage_cleric
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level3 STR_VAR clab = clabpr01 END
+    END
+    cleric_ranger
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabpr01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabrn01 END
+    END
+    DEFAULT
+      TO_LOWER class
+      SPRINT clab $class_clabs("%class%")
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab END
+  END
+END
+
+/*
+ * Applies the CLAB files of all classes but the class with the kit
+ * Does nothing for single-classes. Should not be used for dualclasses
+ */
+DEFINE_PATCH_FUNCTION fl#set_class#apply_kitted_multiclass_abilities
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+    kit_class = ""
+BEGIN
+  PATCH_MATCH "%class%" WITH
+    fighter_mage WHEN "%kit_class%" STRING_EQUAL_CASE fighter
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+    END
+    fighter_mage WHEN "%kit_class%" STRING_EQUAL_CASE mage
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+    END
+    fighter_cleric WHEN "%kit_class%" STRING_EQUAL_CASE fighter
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabpr01 END
+    END
+    fighter_cleric WHEN "%kit_class%" STRING_EQUAL_CASE cleric
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+    END
+    fighter_druid WHEN "%kit_class%" STRING_EQUAL_CASE fighter
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabdr01 END
+    END
+    fighter_druid WHEN "%kit_class%" STRING_EQUAL_CASE druid
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+    END
+    fighter_thief WHEN "%kit_class%" STRING_EQUAL_CASE fighter
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabth01 END
+    END
+    fighter_thief WHEN "%kit_class%" STRING_EQUAL_CASE thief
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabth01 END
+    END
+    fighter_mage_thief WHEN "%kit_class%" STRING_EQUAL_CASE fighter
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level3 STR_VAR clab = clabth01 END
+    END
+    fighter_mage_thief WHEN "%kit_class%" STRING_EQUAL_CASE mage
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level3 STR_VAR clab = clabth01 END
+    END
+    fighter_mage_thief WHEN "%kit_class%" STRING_EQUAL_CASE thief
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+    END
+    mage_thief WHEN "%kit_class%" STRING_EQUAL_CASE mage
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabth01 END
+    END
+    mage_thief WHEN "%kit_class%" STRING_EQUAL_CASE thief
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabma01 END
+    END
+    cleric_mage WHEN "%kit_class%" STRING_EQUAL_CASE cleric
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+    END
+    cleric_mage WHEN "%kit_class%" STRING_EQUAL_CASE mage
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabpr01 END
+    END
+    cleric_thief WHEN "%kit_class%" STRING_EQUAL_CASE cleric
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabth01 END
+    END
+    cleric_thief WHEN "%kit_class%" STRING_EQUAL_CASE thief
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabpr01 END
+    END
+    fighter_mage_cleric WHEN "%kit_class%" STRING_EQUAL_CASE fighter
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level3 STR_VAR clab = clabpr01 END
+    END
+    fighter_mage_cleric WHEN "%kit_class%" STRING_EQUAL_CASE mage
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level3 STR_VAR clab = clabpr01 END
+    END
+    fighter_mage_cleric WHEN "%kit_class%" STRING_EQUAL_CASE cleric
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabfi01 END
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabma01 END
+    END
+    cleric_ranger WHEN "%kit_class%" STRING_EQUAL_CASE cleric
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level2 STR_VAR clab = clabrn01 END
+    END
+    cleric_ranger WHEN "%kit_class%" STRING_EQUAL_CASE ranger
+    BEGIN
+      LPF fl#set_class#apply_clab_file INT_VAR level = level1 STR_VAR clab = clabpr01 END
+    END
+    DEFAULT
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#figure_out_kit_level
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+    kit_class = ""
+  RET
+    level
+BEGIN
+  PATCH_MATCH "%class%" WITH
+    fighter_mage
+    fighter_cleric
+    fighter_thief
+    fighter_druid
+    fighter_mage_thief
+    fighter_mage_cleric WHEN "%kit_class%" STRING_EQUAL_CASE fighter
+    BEGIN level = level1 END
+
+    cleric_ranger
+    cleric_thief
+    cleric_mage WHEN "%kit_class%" STRING_EQUAL_CASE cleric
+    BEGIN level = level1 END
+
+    mage_thief WHEN "%kit_class%" STRING_EQUAL_CASE mage
+    BEGIN level = level1 END
+
+    fighter_mage
+    cleric_mage
+    fighter_mage_thief
+    fighter_mage_cleric WHEN "%kit_class%" STRING_EQUAL_CASE mage
+    BEGIN level = level2 END
+
+    fighter_thief
+    mage_thief
+    cleric_thief WHEN "%kit_class%" STRING_EQUAL_CASE thief
+    BEGIN level = level2 END
+
+    fighter_cleric WHEN "%kit_class%" STRING_EQUAL_CASE cleric
+    BEGIN level = level2 END
+
+    fighter_druid WHEN "%kit_class%" STRING_EQUAL_CASE druid
+    BEGIN level = level2 END
+
+    cleric_ranger WHEN "%kit_class%" STRING_EQUAL_CASE ranger
+    BEGIN level = level2 END
+
+    fighter_mage_thief WHEN "%kit_class%" STRING_EQUAL_CASE thief
+    BEGIN level = level3 END
+
+    fighter_mage_cleric WHEN "%kit_class%" STRING_EQUAL_CASE cleric
+    BEGIN level = level3 END
+
+    DEFAULT
+      level = level1
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#apply_kit_abilities
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+    kit = ""
+BEGIN
+  LPF fl#set_class#get_kit_clab STR_VAR kit RET clab kit_class END
+  PATCH_IF "%class%" STRING_CONTAINS_REGEXP "%kit_class%" BEGIN
+    PATCH_WARN "WARNING: kit %kit% is not a kit of class %class%"
+  END
+  PATCH_IF FILE_EXISTS_IN_GAME "%clab%.2da" BEGIN
+    LPF fl#set_class#figure_out_kit_level INT_VAR level1 level2 level3 STR_VAR class kit_class RET level END
+    LPF fl#set_class#apply_clab_file INT_VAR level STR_VAR clab END
+    LPF fl#set_class#apply_kitted_multiclass_abilities INT_VAR level1 level2 level3 STR_VAR class kit_class END
+  END ELSE BEGIN
+    LPF fl#set_class#apply_class_abilities INT_VAR level1 level2 level3 STR_VAR class END
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#apply_abilities
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+    kit = ""
+BEGIN
+  DEFINE_ASSOCIATIVE_ARRAY kits BEGIN
+    // kit.ids => kitlist.2da (damn you, Bioware)
+    wizardslayer => wizard_slayer
+    undeadhunter => undead_hunter
+    mageschool_abjurer => abjurer
+    mageschool_conjurer => conjurer
+    mageschool_diviner => diviner
+    mageschool_enchanter => enchanter
+    mageschool_illusionist => illusionist
+    mageschool_invoker => invoker
+    mageschool_necromancer => necromancer
+    mageschool_transmuter => transmuter
+    mageschool_generalist => ""
+    bountyhunter => bounty_hunter
+    godtalos => talos
+    godhelm => helm
+    godlathander => lathander
+    totemic => totemic_druid
+    beastfriend => beast_friend
+    trueclass => ""
+  END
+  TO_LOWER kit
+  PATCH_IF VARIABLE_IS_SET $kits("%kit%") BEGIN
+    SPRINT kit $kits("%kit%")
+  END
+  PATCH_IF !"%kit%" STRING_EQUAL_CASE "" BEGIN
+    LPF fl#set_class#apply_kit_abilities INT_VAR level1 level2 level3 STR_VAR class kit END
+  END ELSE BEGIN
+    LPF fl#set_class#apply_class_abilities INT_VAR level1 level2 level3 STR_VAR class END
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#set_ranger_stealth
+  INT_VAR
+    level = 0
+BEGIN
+  INNER_ACTION BEGIN
+    COPY_EXISTING skillrng.2da override
+      found = 0
+      READ_2DA_ENTRIES_NOW skillrng 2
+      FOR (i = 1; i < skillrng; ++i) BEGIN
+        READ_2DA_ENTRY_FORMER skillrng i 0 l
+        PATCH_IF l = level BEGIN
+          READ_2DA_ENTRY_FORMER skillrng i 1 stealth
+          found = 1
+        END
+      END
+    BUT_ONLY
+  END
+  PATCH_IF found BEGIN
+    WRITE_BYTE 0x45 stealth
+    WRITE_BYTE 0x68 stealth
+  END ELSE BEGIN
+    PATCH_WARN "WARNING: cannot set_ranger_stealth for level: %level%"
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#set_bard_pickpocket
+  INT_VAR
+    level = 0
+    divider = 1 // should be 1
+BEGIN
+  INNER_ACTION BEGIN
+    COPY_EXISTING skillbrd.2da override
+      found = 0
+      READ_2DA_ENTRIES_NOW skillbrd 2
+      FOR (i = 1; i < skillbrd; ++i) BEGIN
+        READ_2DA_ENTRY_FORMER skillbrd i 0 l
+        PATCH_IF l = level BEGIN
+          READ_2DA_ENTRY_FORMER skillbrd i 1 pp
+          found = 1
+        END
+      END
+    BUT_ONLY
+  END
+  PATCH_IF found BEGIN
+    pp = pp / divider
+    WRITE_BYTE 0x6a pp
+  END ELSE BEGIN
+    PATCH_WARN "WARNING: cannot set_bard_pickpocket for level: %level%"
+  END
+END
+
+/*
+ * todo: lore
+ */
+DEFINE_PATCH_FUNCTION fl#set_class#set_remaining_hardcoded_stuff
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+    kit = ""
+BEGIN
+  PATCH_MATCH "%class%" WITH
+    ranger
+    BEGIN
+      LPF fl#set_class#set_ranger_stealth INT_VAR level = level1 END
+    END
+    cleric_ranger
+    BEGIN
+      LPF fl#set_class#set_ranger_stealth INT_VAR level = level2 END
+    END
+    bard WHEN "%kit%" STRING_EQUAL_CASE skald
+    BEGIN
+      LPF fl#set_class#set_bard_pickpocket INT_VAR level = level1 divider = 4 END
+    END
+    bard // Blades are hardcoded to receive the full amount (this is fixed through soft-code by the Fixpack)
+    BEGIN
+      LPF fl#set_class#set_bard_pickpocket INT_VAR level = level1 END
+    END
+    DEFAULT
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#validate_class
+  STR_VAR
+    class = ""
+    kit = ""
+  RET
+    class
+    kit
+BEGIN
+  PATCH_IF "%class%" STRING_EQUAL_CASE "barbarian" BEGIN
+    SPRINT class "fighter"
+    SPRINT kit "barbarian"
+  END
+  LPF fl#set_class#canonise_kit_name STR_VAR kit RET kit END
+  class_nr = IDS_OF_SYMBOL (class "%class%")
+  PATCH_IF class_nr < 0 BEGIN
+    PATCH_WARN "WARNING: invalid class: %class%"
+    SPRINT class fighter
+  END
+  PATCH_IF !"%kit%" STRING_EQUAL "" BEGIN
+    kit_nr = IDS_OF_SYMBOL (kit "%kit%")
+    PATCH_IF kit_nr < 0 BEGIN
+      PATCH_WARN "WARNING: invalid kit: %kit%"
+      SPRINT kit ""
+    END
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#validate_levels
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+  RET
+    level1
+    level2
+    level3
+BEGIN
+  PATCH_IF level1 > 50 OR level1 < 1 BEGIN
+    PATCH_WARN "WARNING: invalid level1: %level1%; defaulting to 0"
+    level1 = 1
+  END
+  PATCH_IF level2 > 50 OR level2 < 0 BEGIN
+    PATCH_WARN "WARNING: invalid level2: %level2%; defaulting to 0"
+    level2 = 0
+  END
+  PATCH_IF level3 > 50 OR level2 < 0 BEGIN
+    PATCH_WARN "WARNING: invalid level3: %level3%; defaulting to 0"
+    level3 = 0
+  END
+  PATCH_MATCH "%class%" WITH
+    fighter_mage
+    fighter_cleric
+    fighter_thief
+    mage_thief
+    cleric_mage
+    cleric_thief
+    fighter_druid
+    cleric_ranger WHEN level2 = 0
+    BEGIN PATCH_WARN "WARNING: class is %class% but level2 is 0" END
+
+    fighter_mage_thief
+    fighter_mage_cleric WHEN level2 = 0
+    BEGIN PATCH_WARN "WARNING: class is %class% but level2 is 0" END
+
+    fighter_mage_thief
+    fighter_mage_cleric WHEN level3 = 0
+    BEGIN PATCH_WARN "WARNING: class is %class% but level3 is 0" END
+
+    mage
+    fighter
+    cleric
+    thief
+    bard
+    paladin
+    druid
+    ranger
+    sorcerer
+    monk WHEN level2 > 0 OR level3 > 0
+    BEGIN level2 = 0 level3 = 0 END
+
+    fighter_mage
+    fighter_cleric
+    fighter_thief
+    mage_thief
+    cleric_mage
+    cleric_thief
+    fighter_druid
+    cleric_ranger WHEN level3 > 0
+    BEGIN level3 = 0 END
+
+    DEFAULT
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#set_kit_value
+  STR_VAR
+    kit = ""
+BEGIN
+  kit_nr = IDS_OF_SYMBOL (kit "%kit%")
+  PATCH_MATCH "%kit%" WITH
+    barbarian wildmage
+    BEGIN kit_nr >>= 16 END
+
+    ""
+    BEGIN kit_nr = 0 END
+
+    DEFAULT
+      kit_nr <<= 16
+  END
+  WRITE_LONG 0x244 kit_nr
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#get_levels
+  INT_VAR
+    xp = 0
+  STR_VAR
+    class1 = ""
+    class2 = ""
+    class3 = ""
+  RET
+    level1
+    level2
+    level3
+BEGIN
+  INNER_ACTION BEGIN
+    COPY_EXISTING xplevel.2da override
+      READ_2DA_ENTRIES_NOW xplevel 10
+      COUNT_2DA_COLS num_cols
+      PATCH_FOR_EACH n IN 1 2 3 BEGIN
+        SPRINT class "class%n%"
+        SPRINT class EVAL "%%class%%"
+        PATCH_IF !"%class%" STRING_EQUAL "" BEGIN
+          FOR (i = 1; i < xplevel; ++i) BEGIN
+            READ_2DA_ENTRY_FORMER xplevel i 0 c
+            PATCH_IF "%c%" STRING_EQUAL_CASE "%class%" BEGIN
+              amount = 0
+              FOR (j = 1; j < num_cols && amount < xp; ++j) BEGIN
+                READ_2DA_ENTRY_FORMER xplevel i j amount
+              END
+              READ_2DA_ENTRY_FORMER xplevel 0 j - 2 level //-2 because we want the prior level
+              i = xplevel
+            END
+          END
+          SET EVAL "level%n%" = level
+        END ELSE BEGIN
+          SET EVAL "level%n%" = 0
+        END
+      END
+    BUT_ONLY
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#figure_out_levels
+  INT_VAR
+    xp = 0
+  STR_VAR
+    class = ""
+  RET
+    level1
+    level2
+    level3
+BEGIN
+  PATCH_MATCH "%class%" WITH
+    fighter_mage
+    BEGIN
+      LPF fl#set_class#get_levels INT_VAR xp = xp / 2 STR_VAR class1 = fighter class2 = mage RET level1 level2 END
+      level3 = 0
+    END
+    fighter_cleric
+    BEGIN
+      LPF fl#set_class#get_levels INT_VAR xp = xp / 2 STR_VAR class1 = fighter class2 = cleric RET level1 level2 END
+      level3 = 0
+    END
+    fighter_thief
+    BEGIN
+      LPF fl#set_class#get_levels INT_VAR xp = xp / 2 STR_VAR class1 = fighter class2 = thief RET level1 level2 END
+      level3 = 0
+    END
+    fighter_mage_thief
+    BEGIN
+      LPF fl#set_class#get_levels INT_VAR xp = xp / 3 STR_VAR class1 = fighter class2 = mage class3 = thief RET level1 level2 level3 END
+    END
+    mage_thief
+    BEGIN
+      LPF fl#set_class#get_levels INT_VAR xp = xp / 2 STR_VAR class1 = mage class2 = thief RET level1 level2 END
+      level3 = 0
+    END
+    cleric_mage
+    BEGIN
+      LPF fl#set_class#get_levels INT_VAR xp = xp / 2 STR_VAR class1 = cleric class2 = mage RET level1 level2 END
+      level3 = 0
+    END
+    fighter_druid
+    BEGIN
+      LPF fl#set_class#get_levels INT_VAR xp = xp / 2 STR_VAR class1 = fighter class2 = druid RET level1 level2 END
+      level3 = 0
+    END
+    fighter_mage_cleric
+    BEGIN
+      LPF fl#set_class#get_levels INT_VAR xp = xp / 3 STR_VAR class1 = fighter class2 = mage class3 = cleric RET level1 level2 level3 END
+    END
+    cleric_ranger
+    BEGIN
+      LPF fl#set_class#get_levels INT_VAR xp = xp / 2 STR_VAR class1 = cleric class2 = ranger RET level1 level2 END
+      level3 = 0
+    END
+    DEFAULT
+      LPF fl#set_class#get_levels INT_VAR xp STR_VAR class1 = EVAL "%class%" RET level1 END
+      level2 = 0
+      level3 = 0
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#figure_out_dualclass
+  STR_VAR
+    class = ""
+  RET
+    dualclass //What's the new class?
+    old_class //What was the old class?
+    old_class_index //Where should the old class levels be?
+    valid
+BEGIN
+  READ_BYTE 0x273 old_class_nr
+  LOOKUP_IDS_SYMBOL_OF_INT old_class class old_class_nr
+  PATCH_MATCH "%class%" WITH
+    mage WHEN "%old_class%" STRING_EQUAL_CASE fighter
+    BEGIN SPRINT dualclass "FIGHTER_MAGE" old_class_index = 0 valid = 1 END
+    fighter WHEN "%old_class%" STRING_EQUAL_CASE mage
+    BEGIN SPRINT dualclass "FIGHTER_MAGE" old_class_index = 1 valid = 1 END
+    cleric WHEN "%old_class%" STRING_EQUAL_CASE fighter
+    BEGIN SPRINT dualclass "FIGHTER_CLERIC" old_class_index = 0 valid = 1 END
+    fighter WHEN "%old_class%" STRING_EQUAL_CASE cleric
+    BEGIN SPRINT dualclass "FIGHTER_CLERIC" old_class_index = 1 valid = 1 END
+    thief WHEN "%old_class%" STRING_EQUAL_CASE fighter
+    BEGIN SPRINT dualclass "FIGHTER_THIEF" old_class_index = 0 valid = 1 END
+    fighter WHEN "%old_class%" STRING_EQUAL_CASE thief
+    BEGIN SPRINT dualclass "FIGHTER_THIEF" old_class_index = 1 valid = 1 END
+    mage WHEN "%old_class%" STRING_EQUAL_CASE thief
+    BEGIN SPRINT dualclass "MAGE_THIEF" old_class_index = 1 valid = 1 END
+    thief WHEN "%old_class%" STRING_EQUAL_CASE mage
+    BEGIN SPRINT dualclass "MAGE_THIEF" old_class_index = 0 valid = 1 END
+    mage WHEN "%old_class%" STRING_EQUAL_CASE cleric
+    BEGIN SPRINT dualclass "CLERIC_MAGE" old_class_index = 0 valid = 1 END
+    cleric WHEN "%old_class%" STRING_EQUAL_CASE mage
+    BEGIN SPRINT dualclass "CLERIC_MAGE" old_class_index = 1 valid = 1 END
+    druid WHEN "%old_class%" STRING_EQUAL_CASE fighter
+    BEGIN SPRINT dualclass "FIGHTER_DRUID" old_class_index = 0 valid = 1 END
+    fighter WHEN "%old_class%" STRING_EQUAL_CASE druid
+    BEGIN SPRINT dualclass "FIGHTER_DRUID" old_class_index = 1 valid = 1 END
+    cleric WHEN "%old_class%" STRING_EQUAL_CASE ranger
+    BEGIN SPRINT dualclass "CLERIC_RANGER" old_class_index = 1 valid = 1 END
+    ranger WHEN "%old_class%" STRING_EQUAL_CASE cleric
+    BEGIN SPRINT dualclass "CLERIC_RANGER" old_class_index = 0 valid = 1 END
+    DEFAULT
+      valid = 0
+  END
+  PATCH_IF !valid BEGIN
+    PATCH_WARN "WARNING: %class% and %old_class% are not a valid dualclass combination"
+    old_class_index = 0
+    SPRINT dualclass "%class%"
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#null_dualclass_flags BEGIN
+  WRITE_SHORT 0x10 (THIS & 0xfe07)
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#set_dualclass_flag
+  STR_VAR
+    old_class = ""
+BEGIN
+  LPF fl#set_class#null_dualclass_flags END
+  DEFINE_ASSOCIATIVE_ARRAY dualclass_flags BEGIN
+    fighter => BIT3
+    mage => BIT4
+    cleric => BIT5
+    thief => BIT6
+    druid => BIT7
+    ranger => BIT8
+  END
+  TO_LOWER old_class
+  PATCH_IF VARIABLE_IS_SET $dualclass_flags("%old_class%") BEGIN
+    WRITE_SHORT 0x10 THIS | $dualclass_flags("%old_class%")
+  END ELSE BEGIN
+    PATCH_WARN "WARNING: %old_class% is not a valid class for dualclassing"
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#set_dualclass
+  INT_VAR
+    level = 0
+    old_class_index = 0
+  STR_VAR
+    old_class = ""
+    dualclass = ""
+  RET
+    num_old_class_levels
+BEGIN
+  LPF fl#set_class#set_dualclass_flag STR_VAR old_class END
+  READ_BYTE  0x234 num_old_class_levels
+  PATCH_IF old_class_index = 1 BEGIN // If the old levels should be moved to level2
+    WRITE_BYTE 0x234 level
+    WRITE_BYTE 0x235 num_old_class_levels
+  END ELSE BEGIN
+    WRITE_BYTE 0x235 level
+  END
+  WRITE_BYTE 0x273 IDS_OF_SYMBOL(class "%dualclass%")
+END
+
+
+DEFINE_PATCH_FUNCTION fl#set_class#level_up_dualclass
+  INT_VAR
+    level = 0
+    num_old_class_levels = 0
+    hp = 0
+    max_hp = 0
+    hp_threshold = 0
+  STR_VAR
+    class = ""
+BEGIN
+  // HP
+  PATCH_IF hp <= 0 BEGIN
+    LPF fl#set_class#get_hp INT_VAR level start = num_old_class_levels + 1 max_hp hp_threshold STR_VAR class RET hp END
+  END
+  WRITE_SHORT 0x24 THIS + hp
+  WRITE_SHORT 0x26 THIS + hp
+
+  //THAC0
+  LPF fl#set_class#get_thac0 INT_VAR level STR_VAR class RET thac0 END
+  WRITE_BYTE 0x52 STHIS > thac0 ? thac0 : STHIS
+
+  // Save throws
+  LPF fl#set_class#get_save_throws INT_VAR level1 = level STR_VAR class RET death wands poly breath spells END
+  WRITE_BYTE 0x54 STHIS > death ? death : STHIS
+  WRITE_BYTE 0x55 STHIS > wands ? wands : STHIS
+  WRITE_BYTE 0x56 STHIS > poly ? poly : STHIS
+  WRITE_BYTE 0x57 STHIS > breath ? breath : STHIS
+  WRITE_BYTE 0x58 STHIS > spells ? spells : STHIS
+
+  LPF fl#set_class#set_apr INT_VAR level STR_VAR class END
+
+  // Handle stealth for dualclassing into ranger
+  LPF fl#set_class#set_remaining_hardcoded_stuff INT_VAR level1 = level STR_VAR class END
+
+  // CLAB*
+  LPF fl#set_class#apply_abilities INT_VAR level1 = level STR_VAR class END
+END
+
+/* //Unfinished because adding known spells to NPCs does little good
+DEFINE_PATCH_FUNCTION fl#set_class#get_max_known_spell_level
+  INT_VAR
+    level = 0
+  STR_VAR
+    file_res = ""
+  RET
+    max_known_spell_level
+BEGIN
+  INNER_ACTION BEGIN
+    COPY_EXISTING "%file_res%.2da" override
+      max_known_spell_level = 0
+      READ_2DA_ENTRIES_NOW mxspl 3
+      COUNT_2DA_COLS num_col
+      FOR (i = 1; i < mxspl; ++i) BEGIN
+        READ_2DA_ENTRY_FORMER mxspl i 0 l
+        PATCH_IF l = level BEGIN
+          FOR (j = 1; j < num_col; ++j) BEGIN
+
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#add_cleric_spells
+  INT_VAR
+    level = 0
+    paladin = 0
+BEGIN
+  PATCH_IF !paladin BEGIN
+    SPRINT file_res = mxsplprs
+  END ELSE BEGIN
+    SPRINT file_res = mxsplpal
+  END
+  LPF fl#set_class#get_max_known_spell_level INT_VAR level STR_VAR file_res RET max_known_spell_level END
+  // write me
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#add_druid_spells
+  INT_VAR
+    level = 0
+    ranger = 0
+BEGIN
+  PATCH_IF !ranger BEGIN
+    SPRINT file_res = mxsplprs
+  END
+    SPRINT file_res = mxsplran
+  END
+  LPF fl#set_class#get_max_known_spell_level INT_VAR level STR_VAR file_res RET max_known_spell_level END
+  // write me
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#add_known_spells
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+    kit = ""
+BEGIN
+  PATCH_MATCH "%class%" WITH
+    cleric cleric_mage cleric_thief
+    BEGIN
+      LPF fl#set_class#add_cleric_spells INT_VAR level = level1 END
+    END
+    fighter_cleric
+    BEGIN
+      LPF fl#set_class#add_cleric_spells INT_VAR level = level2 END
+    END
+    fighter_mage_cleric
+    BEGIN
+      LPF fl#set_class#add_cleric_spells INT_VAR level = level3 END
+    END
+    druid
+    BEGIN
+      LPF fl#set_class#add_druid_spells INT_VAR level = level1 END
+    END
+    fighter_druid
+    BEGIN
+      LPF fl#set_class#add_druid_spells INT_VAR level = level2 END
+    END
+    ranger
+    BEGIN
+      LPF fl#set_class#add_druid_spells INT_VAR level = level1 ranger = 1 END
+    END
+    cleric_ranger
+    BEGIN
+      LPF fl#set_class#add_cleric_spells INT_VAR level = level1 END
+      // This is no mistake. CLERIC_RANGERs get druid/ranger spells
+      // according to their highest caster level, rather than according
+      // to their ranger level
+      LPF fl#set_class#add_druid_spells INT_VAR level = level1 >= level2 ? level1 : level2 END
+    END
+    paladin WHEN !"%kit%" STRING_EQUAL_CASE inquisitor
+    BEGIN
+      LPF fl#set_class#add_cleric_spells INT_VAR level = level1 paladin = 1 END
+    END
+    DEFAULT
+  END
+END
+*/
+
+/***************************************************
+ * Public interface
+ ***************************************************/
+
+OUTER_SET fl#set_class_version = 1
+
+//Spells, skills, proficiencies and HLAs are not handled
+DEFINE_PATCH_FUNCTION fl#set_class_by_level
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+    hp = 0 // Use this HP instead of rolling, only if not 0
+    max_hp = 0 // Roll max on all HP rolls
+    hp_threshold = 0 // Never roll below this percentile on HP rolls
+  STR_VAR
+    class = ""
+    kit = ""
+  RET
+    skill_points
+    prof_points
+    hla_points
+BEGIN
+  LPF fl#set_class#validate_class STR_VAR class kit RET class kit END
+  LPF fl#set_class#validate_levels INT_VAR level1 level2 level3 STR_VAR class RET level1 level2 level3 END
+
+  // Class and kit
+  WRITE_BYTE 0x234 level1
+  WRITE_BYTE 0x235 level2
+  WRITE_BYTE 0x236 level3
+  LPF fl#set_class#null_dualclass_flags END
+  LPF fl#set_class#set_kit_value STR_VAR kit END
+  WRITE_BYTE 0x273 IDS_OF_SYMBOL (class "%class%")
+
+  // HP
+  PATCH_IF hp <= 0 BEGIN
+    PATCH_IF "%kit%" STRING_EQUAL_CASE "barbarian" BEGIN
+      LPF fl#set_class#get_hp INT_VAR level1 level2 level3 max_hp hp_threshold barbarian = 1 STR_VAR class RET hp END
+    END ELSE BEGIN
+      LPF fl#set_class#get_hp INT_VAR level1 level2 level3 max_hp hp_threshold STR_VAR class RET hp END
+    END
+  END
+  WRITE_SHORT 0x24 hp
+  WRITE_SHORT 0x26 hp
+
+  // THAC0
+  LPF fl#set_class#get_thac0 INT_VAR level = level1 STR_VAR class RET thac0 END
+  WRITE_BYTE 0x52 thac0
+
+  // Save Throws
+  LPF fl#set_class#get_save_throws INT_VAR level1 level2 level3 STR_VAR class RET death wands poly breath spells END
+  WRITE_BYTE 0x54 death
+  WRITE_BYTE 0x55 wands
+  WRITE_BYTE 0x56 poly
+  WRITE_BYTE 0x57 breath
+  WRITE_BYTE 0x58 spells
+
+  LPF fl#set_class#set_apr INT_VAR level = level1 STR_VAR class END
+  LPF fl#set_class#set_remaining_hardcoded_stuff INT_VAR level1 level2 level3 STR_VAR class kit END
+  LPF fl#set_class#set_animation STR_VAR class END
+
+  // CLAB*
+  LPF fl#set_class#apply_abilities INT_VAR level1 level2 level3 STR_VAR class kit END
+
+  // How much of each a character with this class and level would have; tbd
+  skill_points = 0
+  prof_points = 0
+  hla_points = 0
+  // perhaps something for number of known arcane spells?
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class_by_xp
+  INT_VAR
+    xp  = 0
+    hp = 0
+    max_hp = 0
+    hp_threshold = 0
+  STR_VAR
+    class = ""
+    kit = ""
+  RET
+    skill_points
+    prof_points
+    hla_points
+BEGIN
+  LPF fl#set_class#validate_class STR_VAR class kit RET class kit END
+  LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 level2 level3 END
+  WRITE_LONG 0x18 xp
+  LPF fl#set_class_by_level INT_VAR level1 level2 level3 hp max_hp hp_threshold STR_VAR class kit RET skill_points prof_points hla_points END
+END
+
+DEFINE_PATCH_FUNCTION fl#add_dualclass_by_level
+  INT_VAR
+    level = 0
+    hp = 0
+    max_hp = 0
+    hp_threshold = 0
+  STR_VAR
+    class = ""
+  RET
+    skill_points
+    prof_points
+    hla_points
+BEGIN
+  LPF fl#set_class#validate_class STR_VAR class RET class END
+  LPF fl#set_class#figure_out_dualclass STR_VAR class RET dualclass old_class old_class_index valid END
+  PATCH_IF valid BEGIN
+    PATCH_IF BYTE_AT 0x234 >= level BEGIN
+      PATCH_WARN "WARNING: add_dualclass does not handle dualclasses where the level of the old class is not less than the level of the new class"
+    END
+    LPF fl#set_class#set_dualclass INT_VAR level old_class_index STR_VAR old_class dualclass RET num_old_class_levels END
+    LPF fl#set_class#level_up_dualclass INT_VAR level hp max_hp hp_threshold num_old_class_levels STR_VAR class END
+    LPF fl#set_class#set_animation STR_VAR class END
+  END
+
+  // tbd
+  skill_points = 0
+  prof_points = 0
+  hla_points = 0
+END
+
+DEFINE_PATCH_FUNCTION fl#add_dualclass_by_xp
+  INT_VAR
+    xp = 0
+    hp = 0
+    max_hp = 0
+    hp_threshold = 0
+  STR_VAR
+    class = ""
+  RET
+    skill_points
+    prof_points
+    hla_points
+BEGIN
+  LPF fl#set_class#validate_class STR_VAR class RET class END
+  LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 END
+  WRITE_LONG 0x18 THIS + xp
+  LPF fl#add_dualclass_by_level INT_VAR level = level1 hp max_hp hp_threshold STR_VAR class RET skill_points prof_points hla_points END
+END
+
+/*
+ * todo: I need an ADD_CRE_EFFECT that can insert effects at the end (do we have that already?)
+ * EE compatibility
+ * several hardcoded class/kit aspects are not implemented; I think there was something involving monks
+ * there is also lore
+ * make warnings and such more helpful
+ */
