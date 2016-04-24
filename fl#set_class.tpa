@@ -22,8 +22,158 @@
  *
  */
 
+/*
+ * todo: I need an ADD_CRE_EFFECT that can insert effects at the end (do we have that already?)
+ * EE compatibility
+ * several hardcoded class/kit aspects are not implemented; I think there was something involving monks
+ * there is also lore
+ * make warnings and such more helpful
+ */
+
 /***************************************************
- * "Private" functions, for public ones, vide infra
+ * Public interface
+ ***************************************************/
+
+OUTER_SET fl#set_class_version = 1
+
+//Spells, skills, proficiencies and HLAs are not handled
+DEFINE_PATCH_FUNCTION fl#set_class_by_level
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+    hp = 0 // Use this HP instead of rolling, only if not 0
+    max_hp = 0 // Roll max on all HP rolls
+    hp_threshold = 0 // Never roll below this percentile on HP rolls
+  STR_VAR
+    class = ""
+    kit = ""
+  RET
+    skill_points
+    prof_points
+    hla_points
+BEGIN
+  LPF fl#set_class#validate_class STR_VAR class kit RET class kit END
+  LPF fl#set_class#validate_levels INT_VAR level1 level2 level3 STR_VAR class RET level1 level2 level3 END
+
+  // Class and kit
+  WRITE_BYTE 0x234 level1
+  WRITE_BYTE 0x235 level2
+  WRITE_BYTE 0x236 level3
+  LPF fl#set_class#null_dualclass_flags END
+  LPF fl#set_class#set_kit_value STR_VAR kit END
+  WRITE_BYTE 0x273 IDS_OF_SYMBOL (class "%class%")
+
+  // HP
+  PATCH_IF hp <= 0 BEGIN
+    PATCH_IF "%kit%" STRING_EQUAL_CASE "barbarian" BEGIN
+      LPF fl#set_class#get_hp INT_VAR level1 level2 level3 max_hp hp_threshold barbarian = 1 STR_VAR class RET hp END
+    END ELSE BEGIN
+      LPF fl#set_class#get_hp INT_VAR level1 level2 level3 max_hp hp_threshold STR_VAR class RET hp END
+    END
+  END
+  WRITE_SHORT 0x24 hp
+  WRITE_SHORT 0x26 hp
+
+  // THAC0
+  LPF fl#set_class#get_thac0 INT_VAR level = level1 STR_VAR class RET thac0 END
+  WRITE_BYTE 0x52 thac0
+
+  // Save Throws
+  LPF fl#set_class#get_save_throws INT_VAR level1 level2 level3 STR_VAR class RET death wands poly breath spells END
+  WRITE_BYTE 0x54 death
+  WRITE_BYTE 0x55 wands
+  WRITE_BYTE 0x56 poly
+  WRITE_BYTE 0x57 breath
+  WRITE_BYTE 0x58 spells
+
+  LPF fl#set_class#set_apr INT_VAR level = level1 STR_VAR class END
+  LPF fl#set_class#set_remaining_hardcoded_stuff INT_VAR level1 level2 level3 STR_VAR class kit END
+  LPF fl#set_class#set_animation STR_VAR class END
+
+  // CLAB*
+  LPF fl#set_class#apply_abilities INT_VAR level1 level2 level3 STR_VAR class kit END
+
+  // How much of each a character with this class and level would have; tbd
+  skill_points = 0
+  prof_points = 0
+  hla_points = 0
+  // perhaps something for number of known arcane spells?
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class_by_xp
+  INT_VAR
+    xp  = 0
+    hp = 0
+    max_hp = 0
+    hp_threshold = 0
+  STR_VAR
+    class = ""
+    kit = ""
+  RET
+    skill_points
+    prof_points
+    hla_points
+BEGIN
+  LPF fl#set_class#validate_class STR_VAR class kit RET class kit END
+  LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 level2 level3 END
+  WRITE_LONG 0x18 xp
+  LPF fl#set_class_by_level INT_VAR level1 level2 level3 hp max_hp hp_threshold STR_VAR class kit RET skill_points prof_points hla_points END
+END
+
+DEFINE_PATCH_FUNCTION fl#add_dualclass_by_level
+  INT_VAR
+    level = 0
+    hp = 0
+    max_hp = 0
+    hp_threshold = 0
+  STR_VAR
+    class = ""
+  RET
+    skill_points
+    prof_points
+    hla_points
+BEGIN
+  LPF fl#set_class#validate_class STR_VAR class RET class END
+  LPF fl#set_class#figure_out_dualclass STR_VAR class RET dualclass old_class old_class_index valid END
+  PATCH_IF valid BEGIN
+    PATCH_IF BYTE_AT 0x234 >= level BEGIN
+      PATCH_WARN "WARNING: add_dualclass does not handle dualclasses where the level of the old class is not less than the level of the new class"
+    END
+    LPF fl#set_class#set_dualclass INT_VAR level old_class_index STR_VAR old_class dualclass RET num_old_class_levels END
+    LPF fl#set_class#level_up_dualclass INT_VAR level hp max_hp hp_threshold num_old_class_levels STR_VAR class END
+    LPF fl#set_class#set_animation STR_VAR class END
+  END
+
+  // tbd
+  skill_points = 0
+  prof_points = 0
+  hla_points = 0
+END
+
+DEFINE_PATCH_FUNCTION fl#add_dualclass_by_xp
+  INT_VAR
+    xp = 0
+    hp = 0
+    max_hp = 0
+    hp_threshold = 0
+  STR_VAR
+    class = ""
+  RET
+    skill_points
+    prof_points
+    hla_points
+BEGIN
+  LPF fl#set_class#validate_class STR_VAR class RET class END
+  LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 END
+  WRITE_LONG 0x18 THIS + xp
+  LPF fl#add_dualclass_by_level INT_VAR level = level1 hp max_hp hp_threshold STR_VAR class RET skill_points prof_points hla_points END
+END
+
+
+
+/***************************************************
+ * Private interface
  ***************************************************/
 
 /*
@@ -1658,150 +1808,3 @@ BEGIN
 END
 */
 
-/***************************************************
- * Public interface
- ***************************************************/
-
-OUTER_SET fl#set_class_version = 1
-
-//Spells, skills, proficiencies and HLAs are not handled
-DEFINE_PATCH_FUNCTION fl#set_class_by_level
-  INT_VAR
-    level1 = 0
-    level2 = 0
-    level3 = 0
-    hp = 0 // Use this HP instead of rolling, only if not 0
-    max_hp = 0 // Roll max on all HP rolls
-    hp_threshold = 0 // Never roll below this percentile on HP rolls
-  STR_VAR
-    class = ""
-    kit = ""
-  RET
-    skill_points
-    prof_points
-    hla_points
-BEGIN
-  LPF fl#set_class#validate_class STR_VAR class kit RET class kit END
-  LPF fl#set_class#validate_levels INT_VAR level1 level2 level3 STR_VAR class RET level1 level2 level3 END
-
-  // Class and kit
-  WRITE_BYTE 0x234 level1
-  WRITE_BYTE 0x235 level2
-  WRITE_BYTE 0x236 level3
-  LPF fl#set_class#null_dualclass_flags END
-  LPF fl#set_class#set_kit_value STR_VAR kit END
-  WRITE_BYTE 0x273 IDS_OF_SYMBOL (class "%class%")
-
-  // HP
-  PATCH_IF hp <= 0 BEGIN
-    PATCH_IF "%kit%" STRING_EQUAL_CASE "barbarian" BEGIN
-      LPF fl#set_class#get_hp INT_VAR level1 level2 level3 max_hp hp_threshold barbarian = 1 STR_VAR class RET hp END
-    END ELSE BEGIN
-      LPF fl#set_class#get_hp INT_VAR level1 level2 level3 max_hp hp_threshold STR_VAR class RET hp END
-    END
-  END
-  WRITE_SHORT 0x24 hp
-  WRITE_SHORT 0x26 hp
-
-  // THAC0
-  LPF fl#set_class#get_thac0 INT_VAR level = level1 STR_VAR class RET thac0 END
-  WRITE_BYTE 0x52 thac0
-
-  // Save Throws
-  LPF fl#set_class#get_save_throws INT_VAR level1 level2 level3 STR_VAR class RET death wands poly breath spells END
-  WRITE_BYTE 0x54 death
-  WRITE_BYTE 0x55 wands
-  WRITE_BYTE 0x56 poly
-  WRITE_BYTE 0x57 breath
-  WRITE_BYTE 0x58 spells
-
-  LPF fl#set_class#set_apr INT_VAR level = level1 STR_VAR class END
-  LPF fl#set_class#set_remaining_hardcoded_stuff INT_VAR level1 level2 level3 STR_VAR class kit END
-  LPF fl#set_class#set_animation STR_VAR class END
-
-  // CLAB*
-  LPF fl#set_class#apply_abilities INT_VAR level1 level2 level3 STR_VAR class kit END
-
-  // How much of each a character with this class and level would have; tbd
-  skill_points = 0
-  prof_points = 0
-  hla_points = 0
-  // perhaps something for number of known arcane spells?
-END
-
-DEFINE_PATCH_FUNCTION fl#set_class_by_xp
-  INT_VAR
-    xp  = 0
-    hp = 0
-    max_hp = 0
-    hp_threshold = 0
-  STR_VAR
-    class = ""
-    kit = ""
-  RET
-    skill_points
-    prof_points
-    hla_points
-BEGIN
-  LPF fl#set_class#validate_class STR_VAR class kit RET class kit END
-  LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 level2 level3 END
-  WRITE_LONG 0x18 xp
-  LPF fl#set_class_by_level INT_VAR level1 level2 level3 hp max_hp hp_threshold STR_VAR class kit RET skill_points prof_points hla_points END
-END
-
-DEFINE_PATCH_FUNCTION fl#add_dualclass_by_level
-  INT_VAR
-    level = 0
-    hp = 0
-    max_hp = 0
-    hp_threshold = 0
-  STR_VAR
-    class = ""
-  RET
-    skill_points
-    prof_points
-    hla_points
-BEGIN
-  LPF fl#set_class#validate_class STR_VAR class RET class END
-  LPF fl#set_class#figure_out_dualclass STR_VAR class RET dualclass old_class old_class_index valid END
-  PATCH_IF valid BEGIN
-    PATCH_IF BYTE_AT 0x234 >= level BEGIN
-      PATCH_WARN "WARNING: add_dualclass does not handle dualclasses where the level of the old class is not less than the level of the new class"
-    END
-    LPF fl#set_class#set_dualclass INT_VAR level old_class_index STR_VAR old_class dualclass RET num_old_class_levels END
-    LPF fl#set_class#level_up_dualclass INT_VAR level hp max_hp hp_threshold num_old_class_levels STR_VAR class END
-    LPF fl#set_class#set_animation STR_VAR class END
-  END
-
-  // tbd
-  skill_points = 0
-  prof_points = 0
-  hla_points = 0
-END
-
-DEFINE_PATCH_FUNCTION fl#add_dualclass_by_xp
-  INT_VAR
-    xp = 0
-    hp = 0
-    max_hp = 0
-    hp_threshold = 0
-  STR_VAR
-    class = ""
-  RET
-    skill_points
-    prof_points
-    hla_points
-BEGIN
-  LPF fl#set_class#validate_class STR_VAR class RET class END
-  LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 END
-  WRITE_LONG 0x18 THIS + xp
-  LPF fl#add_dualclass_by_level INT_VAR level = level1 hp max_hp hp_threshold STR_VAR class RET skill_points prof_points hla_points END
-END
-
-/*
- * todo: I need an ADD_CRE_EFFECT that can insert effects at the end (do we have that already?)
- * EE compatibility
- * several hardcoded class/kit aspects are not implemented; I think there was something involving monks
- * there is also lore
- * make warnings and such more helpful
- */
