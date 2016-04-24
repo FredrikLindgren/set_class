@@ -23,7 +23,7 @@
  */
 
 /*
- * todo: I need an ADD_CRE_EFFECT that can insert effects at the end (do we have that already?)
+ * todo:
  * EE compatibility
  * several hardcoded class/kit aspects are not implemented; I think there was something involving monks
  * there is also lore
@@ -883,12 +883,13 @@ BEGIN
       BUT_ONLY
     END
     PHP_EACH opcode AS i => opcode BEGIN
-      LPF fl#set_class#ADD_CRE_EFFECT
+      LPF ADD_CRE_EFFECT
         INT_VAR
           opcode
           parameter1 = $p1("%i%")
           parameter2 = $p2("%i%")
           timing = $timing("%i%")
+          insert_point = "-1"
         STR_VAR
           resource = EVAL $resref("%i%")
       END
