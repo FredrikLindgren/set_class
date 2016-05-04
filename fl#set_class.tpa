@@ -26,7 +26,6 @@
  * todo:
  * EE compatibility
  * several hardcoded class/kit aspects are not implemented; I think there was something involving monks
- * there is also lore
  * make warnings and such more helpful
  */
 
@@ -86,6 +85,10 @@ BEGIN
   WRITE_BYTE 0x56 poly
   WRITE_BYTE 0x57 breath
   WRITE_BYTE 0x58 spells
+
+  // Lore
+  LPF fl#set_class#get_lore INT_VAR level1 level2 level3 STR_VAR class kit RET lore END
+  WRITE_BYTE 0x66 lore
 
   LPF fl#set_class#set_apr INT_VAR level = level1 STR_VAR class END
   LPF fl#set_class#set_remaining_hardcoded_stuff INT_VAR level1 level2 level3 STR_VAR class kit END
@@ -655,6 +658,143 @@ BEGIN
     END
     DEFAULT
       PATCH_WARN "WARNING: unsupported class for function set_save_throws: %class%"
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#get_lore
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+    kit = ""
+  RET
+    lore
+BEGIN
+  lore = 1
+  PATCH_MATCH "%class%" WITH
+    fighter_mage
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = fighter RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = mage RET rate2 = rate END
+      lore = rate1 > rate2 ? rate1 * level1 : rate2 * level2
+    END
+
+    fighter_cleric
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = fighter RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = cleric RET rate2 = rate END
+      lore = rate1 > rate2 ? rate1 * level1 : rate2 * level2
+    END
+
+    fighter_druid
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = fighter RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = druid RET rate2 = rate END
+      lore = rate1 > rate2 ? rate1 * level1 : rate2 * level2
+    END
+
+    cleric_ranger
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = cleric RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = ranger RET rate2 = rate END
+      lore = rate1 > rate2 ? rate1 * level1 : rate2 * level2
+    END
+
+    fighter_thief
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = fighter RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = thief RET rate2 = rate END
+      lore = rate1 > rate2 ? rate1 * level1 : rate2 * level2
+    END
+
+    mage_thief
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = mage RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = thief RET rate2 = rate END
+      lore = rate1 > rate2 ? rate1 * level1 : rate2 * level2
+    END
+
+    cleric_mage
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = cleric RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = mage RET rate2 = rate END
+      lore = rate1 > rate2 ? rate1 * level1 : rate2 * level2
+    END
+
+    cleric_thief
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = cleric RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = thief RET rate2 = rate END
+      lore = rate1 > rate2 ? rate1 * level1 : rate2 * level2
+    END
+
+    fighter_mage_thief
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = figher RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = mage RET rate2 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = thief RET rate3 = rate END
+      lore = rate1 > rate2 ? (rate1 > rate3 ? rate1 * level1 : rate3 * level3) :
+                             (rate2 > rate3 ? rate2 * level2 : rate3 * level3)
+    END
+
+    fighter_mage_cleric
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = fighter RET rate1 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = mage RET rate2 = rate END
+      LPF fl#set_class#get_lore_rate STR_VAR class = cleric RET rate3 = rate END
+      lore = rate1 > rate2 ? (rate1 > rate3 ? rate1 * level1 : rate3 * level3) :
+                             (rate2 > rate3 ? rate2 * level2 : rate3 * level3)
+    END
+
+    bard WHEN "%kit%" STRING_EQUAL_CASE blade
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = bard RET rate END
+      rate /= 2 // Half rate, rounded down
+      lore = rate * level1
+    END
+
+    monk
+    BEGIN
+      rate = 1 // Monks have a hardcoded rate
+      lore = rate * level1
+    END
+
+    sorcerer
+    BEGIN
+      LPF fl#set_class#get_lore_rate STR_VAR class = mage RET rate END
+      lore = rate * level1
+    END
+
+    DEFAULT
+      LPF fl#set_class#get_lore_rate STR_VAR class RET rate END
+      lore = rate * level1
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#get_lore_rate
+  STR_VAR
+    class = ""
+  RET
+    rate
+BEGIN
+  INNER_ACTION BEGIN
+    COPY_EXISTING lore.2da override
+      found = 0
+      READ_2DA_ENTRIES_NOW lore 2
+      FOR (i = 1; i < lore; ++i) BEGIN
+        READ_2DA_ENTRY_FORMER lore i 0 c
+        PATCH_IF "%c%" STRING_EQUAL_CASE "%class%" BEGIN
+          READ_2DA_ENTRY_FORMER lore i 1 rate
+          found = 1
+        END
+      END
+    BUT_ONLY
+  END
+  PATCH_IF !found BEGIN
+    PATCH_WARN "WARNING: cannot find lore rate for class: %class%; defaulting to 1"
+    rate = 1
   END
 END
 
@@ -1326,9 +1466,6 @@ BEGIN
   END
 END
 
-/*
- * todo: lore
- */
 DEFINE_PATCH_FUNCTION fl#set_class#set_remaining_hardcoded_stuff
   INT_VAR
     level1 = 0
@@ -1699,6 +1836,10 @@ BEGIN
   WRITE_BYTE 0x56 STHIS > poly ? poly : STHIS
   WRITE_BYTE 0x57 STHIS > breath ? breath : STHIS
   WRITE_BYTE 0x58 STHIS > spells ? spells : STHIS
+
+  // Lore
+  LPF fl#set_class#get_lore INT_VAR level1 = level STR_VAR class RET lore END
+  WRITE_BYTE 0x66 THIS > lore ? THIS : lore
 
   LPF fl#set_class#set_apr INT_VAR level STR_VAR class END
 
