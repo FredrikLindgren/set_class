@@ -43,6 +43,7 @@ DEFINE_PATCH_FUNCTION fl#set_class_by_level
     hp = 0 // Use this HP instead of rolling, only if not 0
     max_hp = 0 // Roll max on all HP rolls
     hp_threshold = 0 // Never roll below this percentile on HP rolls
+    joinable = 0 // Set this for joinable NPCs
   STR_VAR
     class = ""
     kit = ""
@@ -94,7 +95,9 @@ BEGIN
   LPF fl#set_class#set_animation STR_VAR class END
 
   // CLAB*
-  LPF fl#set_class#apply_abilities INT_VAR level1 level2 level3 STR_VAR class kit END
+  PATCH_IF !joinable BEGIN
+    LPF fl#set_class#apply_abilities INT_VAR level1 level2 level3 STR_VAR class kit END
+  END
 
   // How much of each a character with this class and level would have; tbd
   skill_points = 0
@@ -109,6 +112,7 @@ DEFINE_PATCH_FUNCTION fl#set_class_by_xp
     hp = 0
     max_hp = 0
     hp_threshold = 0
+    joinable = 0
   STR_VAR
     class = ""
     kit = ""
@@ -129,6 +133,7 @@ DEFINE_PATCH_FUNCTION fl#add_dualclass_by_level
     hp = 0
     max_hp = 0
     hp_threshold = 0
+    joinable = 0
   STR_VAR
     class = ""
   RET
@@ -143,7 +148,7 @@ BEGIN
       PATCH_WARN "WARNING: add_dualclass does not handle dualclasses where the level of the old class is not less than the level of the new class"
     END
     LPF fl#set_class#set_dualclass INT_VAR level old_class_index STR_VAR old_class dualclass RET num_old_class_levels END
-    LPF fl#set_class#level_up_dualclass INT_VAR level hp max_hp hp_threshold num_old_class_levels STR_VAR class END
+    LPF fl#set_class#level_up_dualclass INT_VAR level hp max_hp hp_threshold num_old_class_levels joinable STR_VAR class END
     LPF fl#set_class#set_animation STR_VAR class END
   END
 
@@ -159,6 +164,7 @@ DEFINE_PATCH_FUNCTION fl#add_dualclass_by_xp
     hp = 0
     max_hp = 0
     hp_threshold = 0
+    joinable = 0
   STR_VAR
     class = ""
   RET
@@ -1863,6 +1869,7 @@ DEFINE_PATCH_FUNCTION fl#set_class#level_up_dualclass
     hp = 0
     max_hp = 0
     hp_threshold = 0
+    joinable = 0
   STR_VAR
     class = ""
 BEGIN
@@ -1895,7 +1902,9 @@ BEGIN
   LPF fl#set_class#set_remaining_hardcoded_stuff INT_VAR level1 = level STR_VAR class END
 
   // CLAB*
-  LPF fl#set_class#apply_abilities INT_VAR level1 = level STR_VAR class END
+  PATCH_IF !joinable BEGIN
+    LPF fl#set_class#apply_abilities INT_VAR level1 = level STR_VAR class END
+  END
 END
 
 /* //Unfinished because adding known spells to NPCs does little good
