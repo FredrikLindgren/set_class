@@ -1070,8 +1070,8 @@ BEGIN
         counter = 0
         READ_2DA_ENTRIES_NOW applyclab 10
         COUNT_2DA_COLS num_cols
-        FOR (i = 1; i < num_cols - 1; ++i) BEGIN
-          READ_2DA_ENTRY_FORMER applyclab 0 i - 1 l
+        FOR (i = 1; i < num_cols; ++i) BEGIN
+          READ_2DA_ENTRY_FORMER applyclab 0 i - 1 l // -1 because the header row is 1 shorter
           PATCH_IF l <= level BEGIN
             FOR (j = 1; j < applyclab; ++j) BEGIN
               READ_2DA_ENTRY_FORMER applyclab j i entry
