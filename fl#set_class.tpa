@@ -1634,10 +1634,10 @@ BEGIN
             READ_2DA_ENTRY_FORMER xplevel i 0 c
             PATCH_IF "%c%" STRING_EQUAL_CASE "%class%" BEGIN
               amount = 0
-              FOR (j = 1; j < num_cols && amount < xp; ++j) BEGIN
-                READ_2DA_ENTRY_FORMER xplevel i j amount
+              FOR (j = 1; j < num_cols && amount <= xp; ++j) BEGIN
+                READ_2DA_ENTRY_FORMER xplevel i j + 1 amount // +1 because the level row is offset by 1 to the left
               END
-              READ_2DA_ENTRY_FORMER xplevel 0 j - 2 level //-2 because we want the prior level
+              READ_2DA_ENTRY_FORMER xplevel 0 j - 2 level // -2 because we want the level for which amount is not greater than xp
               i = xplevel
             END
           END
