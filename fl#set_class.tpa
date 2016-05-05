@@ -1010,11 +1010,13 @@ BEGIN
             READ_LONG  eo + 0x30 * (ei + j) + 0x4  p1
             READ_LONG  eo + 0x30 * (ei + j) + 0x8  p2
             READ_BYTE  eo + 0x30 * (ei + j) + 0xc  timing
+            READ_BYTE  eo + 0x30 * (ei + j) + 0xd  resist_dispel
             READ_ASCII eo + 0x30 * (ei + j) + 0x14 resref
             SET $opcode("%counter%") = opcode
             SET $p1("%counter%") = p1
             SET $p2("%counter%") = p2
             SET $timing("%counter%") = timing
+            SET $resist_dispel("%counter%") = resist_dispel
             SPRINT $resref("%counter%") "%resref%"
             ++counter
           END
@@ -1028,9 +1030,13 @@ BEGIN
           parameter1 = $p1("%i%")
           parameter2 = $p2("%i%")
           timing = $timing("%i%")
+          resist_dispel = $resist_dispel("%i%")
           insert_point = "-1"
+          restype = 1
+          casterlvl = level
         STR_VAR
           resource = EVAL $resref("%i%")
+          effsource = EVAL "%spell%"
       END
     END
   END
