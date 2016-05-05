@@ -25,7 +25,6 @@
 /*
  * todo:
  * EE compatibility
- * several hardcoded class/kit aspects are not implemented; I think there was something involving monks
  * make warnings and such more helpful
  */
 
@@ -1466,6 +1465,45 @@ BEGIN
   END
 END
 
+DEFINE_PATCH_FUNCTION fl#set_class#set_monk_ac
+  INT_VAR
+    level = 0
+BEGIN
+  // Effective AC
+  ac = level = 40 ? "-6" :
+       level >= 35 ? "-5" :
+       level >= 30 ? "-4" :
+       level >= 27 ? "-3" :
+       level >= 24 ? "-2" :
+       level >= 21 ? "-1" :
+       level >= 18 ? 0 :
+       level >= 16 ? 1 :
+       level >= 14 ? 2 :
+       level >= 12 ? 3 :
+       level >= 10 ? 4 :
+       level >= 8 ? 5 :
+       level >= 6 ? 6 :
+       level >= 4 ? 7 :
+       level >= 2 ? 8 : 9
+  WRITE_SHORT 0x48 ac
+
+  // AC modifier versus missiles
+  mac = level >= 39 ? "-13" :
+        level >= 36 ? "-12" :
+        level >= 33 ? "-11" :
+        level >= 30 ? "-10" :
+        level >= 27 ? "-9" :
+        level >= 24 ? "-8" :
+        level >= 21 ? "-7" :
+        level >= 18 ? "-6" :
+        level >= 15 ? "-5" :
+        level >= 12 ? "-4" :
+        level >= 9 ? "-3" :
+        level >= 6 ? "-2" :
+        level >= 3 ? "-1" : 0
+  WRITE_SHORT 0x4c mac
+END
+
 DEFINE_PATCH_FUNCTION fl#set_class#set_remaining_hardcoded_stuff
   INT_VAR
     level1 = 0
@@ -1491,6 +1529,10 @@ BEGIN
     bard // Blades are hardcoded to receive the full amount (this is fixed through soft-code by the Fixpack)
     BEGIN
       LPF fl#set_class#set_bard_pickpocket INT_VAR level = level1 END
+    END
+    monk
+    BEGIN
+      LPF fl#set_class#set_monk_ac INT_VAR level = level1 END
     END
     DEFAULT
   END
