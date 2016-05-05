@@ -1585,7 +1585,7 @@ BEGIN
     PATCH_WARN "WARNING: invalid level2: %level2%; defaulting to 0"
     level2 = 0
   END
-  PATCH_IF level3 > 50 OR level2 < 0 BEGIN
+  PATCH_IF level3 > 50 OR level3 < 0 BEGIN
     PATCH_WARN "WARNING: invalid level3: %level3%; defaulting to 0"
     level3 = 0
   END
