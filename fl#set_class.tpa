@@ -1578,7 +1578,7 @@ DEFINE_PATCH_FUNCTION fl#set_class#validate_levels
     level3
 BEGIN
   PATCH_IF level1 > 50 OR level1 < 1 BEGIN
-    PATCH_WARN "WARNING: invalid level1: %level1%; defaulting to 0"
+    PATCH_WARN "WARNING: invalid level1: %level1%; defaulting to 1"
     level1 = 1
   END
   PATCH_IF level2 > 50 OR level2 < 0 BEGIN
