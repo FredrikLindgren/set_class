@@ -225,7 +225,7 @@ BEGIN
             rolls = 6
           END
           FOR (j = 0; j < rolls; ++j) BEGIN
-            PATCH_IF max_hp BEGIN
+            PATCH_IF max_hp OR i = 1 BEGIN // You roll max for your first level(s)
               amount = sides / divider
               amount = amount = 0 ? 1 : amount
             END ELSE BEGIN
