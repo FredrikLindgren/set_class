@@ -35,7 +35,7 @@
 OUTER_SET fl#set_class_version = 1
 
 //Spells, skills, proficiencies and HLAs are not handled
-DEFINE_PATCH_FUNCTION fl#set_class_by_level
+DEFINE_PATCH_FUNCTION fl#set_class
   INT_VAR
     level1 = 0
     level2 = 0
@@ -54,6 +54,9 @@ DEFINE_PATCH_FUNCTION fl#set_class_by_level
     hla_points
 BEGIN
   LPF fl#set_class#validate_class STR_VAR class kit RET class kit END
+  PATCH_IF level1 = 0 AND xp > 0 BEGIN
+    LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 level2 level3 END
+  END
   LPF fl#set_class#validate_levels INT_VAR level1 level2 level3 STR_VAR class RET level1 level2 level3 END
 
   // Class and kit
@@ -112,27 +115,7 @@ BEGIN
   // perhaps something for number of known arcane spells?
 END
 
-DEFINE_PATCH_FUNCTION fl#set_class_by_xp
-  INT_VAR
-    xp  = 0
-    hp = 0
-    max_hp = 0
-    hp_threshold = 0
-    joinable = 0
-  STR_VAR
-    class = ""
-    kit = ""
-  RET
-    skill_points
-    prof_points
-    hla_points
-BEGIN
-  LPF fl#set_class#validate_class STR_VAR class kit RET class kit END
-  LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 level2 level3 END
-  LPF fl#set_class_by_level INT_VAR xp level1 level2 level3 hp max_hp hp_threshold STR_VAR class kit RET skill_points prof_points hla_points END
-END
-
-DEFINE_PATCH_FUNCTION fl#add_dualclass_by_level
+DEFINE_PATCH_FUNCTION fl#add_dualclass
   INT_VAR
     level = 0
     hp = 0
@@ -148,6 +131,11 @@ DEFINE_PATCH_FUNCTION fl#add_dualclass_by_level
     hla_points
 BEGIN
   LPF fl#set_class#validate_class STR_VAR class RET class END
+  PATCH_IF level = 0 AND xp > 0 BEGIN
+    LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level = level1 END
+  END
+  LPF fl#set_class#validate_levels INT_VAR level1 = level STR_VAR class RET level = level1 END
+
   LPF fl#set_class#figure_out_dualclass STR_VAR class RET dualclass old_class old_class_index valid END
   PATCH_IF valid BEGIN
     PATCH_IF BYTE_AT 0x234 >= level BEGIN
@@ -163,26 +151,6 @@ BEGIN
   prof_points = 0
   hla_points = 0
 END
-
-DEFINE_PATCH_FUNCTION fl#add_dualclass_by_xp
-  INT_VAR
-    xp = 0
-    hp = 0
-    max_hp = 0
-    hp_threshold = 0
-    joinable = 0
-  STR_VAR
-    class = ""
-  RET
-    skill_points
-    prof_points
-    hla_points
-BEGIN
-  LPF fl#set_class#validate_class STR_VAR class RET class END
-  LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 END
-  LPF fl#add_dualclass_by_level INT_VAR xp level = level1 hp max_hp hp_threshold STR_VAR class RET skill_points prof_points hla_points END
-END
-
 
 
 /***************************************************
