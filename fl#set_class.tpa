@@ -44,6 +44,7 @@ DEFINE_PATCH_FUNCTION fl#set_class_by_level
     max_hp = 0 // Roll max on all HP rolls
     hp_threshold = 0 // Never roll below this percentile on HP rolls
     joinable = 0 // Set this for joinable NPCs
+    xp = "-1"
   STR_VAR
     class = ""
     kit = ""
@@ -62,6 +63,11 @@ BEGIN
   LPF fl#set_class#null_dualclass_flags END
   LPF fl#set_class#set_kit_value STR_VAR kit END
   WRITE_BYTE 0x273 IDS_OF_SYMBOL (class "%class%")
+
+  PATCH_IF xp < 0 BEGIN
+    LPF fl#set_class#figure_out_xp INT_VAR level1 level2 level3 STR_VAR class RET xp END
+  END
+  WRITE_LONG 0x18 xp
 
   // HP
   PATCH_IF hp <= 0 BEGIN
@@ -123,8 +129,7 @@ DEFINE_PATCH_FUNCTION fl#set_class_by_xp
 BEGIN
   LPF fl#set_class#validate_class STR_VAR class kit RET class kit END
   LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 level2 level3 END
-  WRITE_LONG 0x18 xp
-  LPF fl#set_class_by_level INT_VAR level1 level2 level3 hp max_hp hp_threshold STR_VAR class kit RET skill_points prof_points hla_points END
+  LPF fl#set_class_by_level INT_VAR xp level1 level2 level3 hp max_hp hp_threshold STR_VAR class kit RET skill_points prof_points hla_points END
 END
 
 DEFINE_PATCH_FUNCTION fl#add_dualclass_by_level
@@ -134,6 +139,7 @@ DEFINE_PATCH_FUNCTION fl#add_dualclass_by_level
     max_hp = 0
     hp_threshold = 0
     joinable = 0
+    xp = "-1"
   STR_VAR
     class = ""
   RET
@@ -148,7 +154,7 @@ BEGIN
       PATCH_WARN "WARNING: add_dualclass does not handle dualclasses where the level of the old class is not less than the level of the new class"
     END
     LPF fl#set_class#set_dualclass INT_VAR level old_class_index STR_VAR old_class dualclass RET num_old_class_levels END
-    LPF fl#set_class#level_up_dualclass INT_VAR level hp max_hp hp_threshold num_old_class_levels joinable STR_VAR class END
+    LPF fl#set_class#level_up_dualclass INT_VAR xp level hp max_hp hp_threshold num_old_class_levels joinable STR_VAR class END
     LPF fl#set_class#set_animation STR_VAR dualclass END
   END
 
@@ -174,8 +180,7 @@ DEFINE_PATCH_FUNCTION fl#add_dualclass_by_xp
 BEGIN
   LPF fl#set_class#validate_class STR_VAR class RET class END
   LPF fl#set_class#figure_out_levels INT_VAR xp STR_VAR class RET level1 END
-  WRITE_LONG 0x18 THIS + xp
-  LPF fl#add_dualclass_by_level INT_VAR level = level1 hp max_hp hp_threshold STR_VAR class RET skill_points prof_points hla_points END
+  LPF fl#add_dualclass_by_level INT_VAR xp level = level1 hp max_hp hp_threshold STR_VAR class RET skill_points prof_points hla_points END
 END
 
 
@@ -1664,6 +1669,45 @@ BEGIN
   WRITE_LONG 0x244 kit_nr
 END
 
+DEFINE_PATCH_FUNCTION fl#set_class#get_xp
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class1 = ""
+    class2 = ""
+    class3 = ""
+  RET
+    xp
+BEGIN
+  xp = 0
+  INNER_ACTION BEGIN
+    COPY_EXISTING xplevel.2da override
+      READ_2DA_ENTRIES_NOW xplevel 10
+      COUNT_2DA_COLS num_cols
+      PATCH_FOR_EACH n IN 1 2 3 BEGIN
+        SPRINT class "class%n%"
+        SPRINT class EVAL "%%class%%"
+        PATCH_IF !"%class%" STRING_EQUAL "" BEGIN
+          FOR (i = 1; i < xplevel; ++i) BEGIN
+            READ_2DA_ENTRY_FORMER xplevel i 0 c
+            PATCH_IF "%c%" STRING_EQUAL_CASE "%class%" BEGIN
+              level = 0
+              leveln = EVAL "level%n%"
+              FOR (j = 0; j < num_cols - 1 && level < leveln; ++j) BEGIN // -1 because the column-header row is 1 shorter
+                READ_2DA_ENTRY_FORMER xplevel 0 j level
+              END
+              READ_2DA_ENTRY_FORMER xplevel i j amount
+              xp += amount
+            END
+          END
+        END
+      END
+    BUT_ONLY
+  END
+END
+
 DEFINE_PATCH_FUNCTION fl#set_class#get_levels
   INT_VAR
     xp = 0
@@ -1701,6 +1745,58 @@ BEGIN
         END
       END
     BUT_ONLY
+  END
+END
+
+DEFINE_PATCH_FUNCTION fl#set_class#figure_out_xp
+  INT_VAR
+    level1 = 0
+    level2 = 0
+    level3 = 0
+  STR_VAR
+    class = ""
+  RET
+    xp
+BEGIN
+  PATCH_MATCH "%class%" WITH
+    fighter_mage
+    BEGIN
+      LPF fl#set_class#get_xp INT_VAR level1 level2 STR_VAR class1 = fighter class2 = mage RET xp END
+    END
+    fighter_cleric
+    BEGIN
+      LPF fl#set_class#get_xp INT_VAR level1 level2 STR_VAR class1 = fighter class2 = cleric RET xp END
+    END
+    fighter_thief
+    BEGIN
+      LPF fl#set_class#get_xp INT_VAR level1 level2 STR_VAR class1 = fighter class2 = thief RET xp END
+    END
+    fighter_mage_thief
+    BEGIN
+      LPF fl#set_class#get_xp INT_VAR level1 level2 level3 STR_VAR class1 = fighter class2 = mage class3 = thief RET xp END
+    END
+    mage_thief
+    BEGIN
+      LPF fl#set_class#get_xp INT_VAR level1 level2 STR_VAR class1 = mage class2 = thief RET xp END
+    END
+    cleric_mage
+    BEGIN
+      LPF fl#set_class#get_xp INT_VAR level1 level2 STR_VAR class1 = cleric class2 = mage RET xp END
+    END
+    fighter_druid
+    BEGIN
+      LPF fl#set_class#get_xp INT_VAR level1 level2 STR_VAR class1 = fighter class2 = druid RET xp END
+    END
+    fighter_mage_cleric
+    BEGIN
+      LPF fl#set_class#get_xp INT_VAR level1 level2 level3 STR_VAR class1 = fighter class2 = mage class3 = cleric RET xp END
+    END
+    cleric_ranger
+    BEGIN
+      LPF fl#set_class#get_xp INT_VAR level1 level2 STR_VAR class1 = cleric class2 = ranger RET xp END
+    END
+    DEFAULT
+      LPF fl#set_class#get_xp INT_VAR level1 STR_VAR class1 = EVAL "%class%" RET xp END
   END
 END
 
@@ -1870,6 +1966,7 @@ DEFINE_PATCH_FUNCTION fl#set_class#level_up_dualclass
     max_hp = 0
     hp_threshold = 0
     joinable = 0
+    xp = "-1"
   STR_VAR
     class = ""
 BEGIN
@@ -1879,6 +1976,12 @@ BEGIN
   END
   WRITE_SHORT 0x24 THIS + hp
   WRITE_SHORT 0x26 THIS + hp
+
+  // XP
+  PATCH_IF xp < 0 BEGIN
+    LPF fl#set_class#figure_out_xp INT_VAR level1 = level STR_VAR class RET xp END
+  END
+  WRITE_LONG 0x18 xp
 
   //THAC0
   LPF fl#set_class#get_thac0 INT_VAR level STR_VAR class RET thac0 END
