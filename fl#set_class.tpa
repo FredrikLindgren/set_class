@@ -189,10 +189,6 @@ END
  * Private interface
  ***************************************************/
 
-/*
- *
- * BGEE has hpclass.2da, plus hpbarb.2da, hpdd.2da and three kits that use different tables from the base class
- */
 DEFINE_PATCH_FUNCTION fl#set_class#roll_hp
   INT_VAR
     level = 0
@@ -667,7 +663,7 @@ BEGIN
       END
     END
     DEFAULT
-      PATCH_WARN "WARNING: unsupported class for function set_save_throws: %class%"
+      PATCH_WARN "WARNING: unsupported class for function get_save_throws: %class%"
   END
 END
 
@@ -892,7 +888,7 @@ DEFINE_PATCH_FUNCTION fl#set_class#set_apr
   STR_VAR
     class = ""
 BEGIN
-  // APR bonuses from wspatck.2da are applied dynamically by the engine
+  // APR bonuses from wspatck.2da and hardcoded monk bonuses are applied dynamically by the engine
   apr = 1
   WRITE_BYTE 0x53 apr
 END
@@ -1098,7 +1094,7 @@ BEGIN
               END
             END
           END
-          PATCH_IF l > level BEGIN // we're done
+          PATCH_IF l > level BEGIN
             i = num_cols
           END
         END
@@ -1109,7 +1105,7 @@ BEGIN
         LPF fl#set_class#get_spell STR_VAR entry RET spell END
         LPF fl#set_class#gain_spell STR_VAR spell END
       END
-      PATCH_IF "%entry%" STRING_MATCHES_REGEXP "AP_.+" = 0 BEGIN // this may apply the effects in the reversed order
+      PATCH_IF "%entry%" STRING_MATCHES_REGEXP "AP_.+" = 0 BEGIN
         LPF fl#set_class#get_spell STR_VAR entry RET spell END
         LPF fl#set_class#apply_spell INT_VAR level = $levels("%i%") STR_VAR spell END
       END
@@ -1733,7 +1729,7 @@ BEGIN
             PATCH_IF "%c%" STRING_EQUAL_CASE "%class%" BEGIN
               amount = 0
               FOR (j = 1; j < num_cols && amount <= xp; ++j) BEGIN
-                READ_2DA_ENTRY_FORMER xplevel i j + 1 amount // +1 because the level row is offset by 1 to the left
+                READ_2DA_ENTRY_FORMER xplevel i j + 1 amount // +1 because the level row is 1 shorter
               END
               READ_2DA_ENTRY_FORMER xplevel 0 j - 2 level // -2 because we want the level for which amount is not greater than xp
               i = xplevel
@@ -1865,9 +1861,9 @@ DEFINE_PATCH_FUNCTION fl#set_class#figure_out_dualclass
   STR_VAR
     class = ""
   RET
-    dualclass //What's the new class?
-    old_class //What was the old class?
-    old_class_index //Where should the old class levels be?
+    dualclass // What's the new class?
+    old_class // What was the old class?
+    old_class_index // Where should the old class levels be?
     valid
 BEGIN
   READ_BYTE 0x273 old_class_nr
@@ -1983,7 +1979,7 @@ BEGIN
   END
   WRITE_LONG 0x18 xp
 
-  //THAC0
+  // THAC0
   LPF fl#set_class#get_thac0 INT_VAR level STR_VAR class RET thac0 END
   WRITE_BYTE 0x52 STHIS > thac0 ? thac0 : STHIS
 
