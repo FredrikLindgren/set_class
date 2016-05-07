@@ -155,7 +155,7 @@ BEGIN
     END
     LPF fl#set_class#set_dualclass INT_VAR level old_class_index STR_VAR old_class dualclass RET num_old_class_levels END
     LPF fl#set_class#level_up_dualclass INT_VAR xp level hp max_hp hp_threshold num_old_class_levels joinable STR_VAR class END
-    LPF fl#set_class#set_animation STR_VAR dualclass END
+    LPF fl#set_class#set_animation STR_VAR class = EVAL "%dualclass%" END
   END
 
   // tbd
